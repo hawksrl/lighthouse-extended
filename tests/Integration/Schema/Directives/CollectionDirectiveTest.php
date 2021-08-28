@@ -396,4 +396,28 @@ class CollectionDirectiveTest extends TestCase
     {
         // TODO: Test CollectionDirective@paginatorRelationshipTypeResolver.
     }
+
+    /** @test */
+    public function it_can_fetch_plain_using_a_custom_resolver()
+    {
+        $this->buildSchema(/** @lang GraphQL */ <<<'GRAPHQL'
+            type Post {
+                id: ID!
+                title: String!
+            }
+            type Query {
+                postsByUser(userId: ID!): [Post!] @collection(resolver: "Tests\\Utils\\Queries\\PostsByUserQuery@resolve", type: "plain")
+            }
+        GRAPHQL);
+
+        $postsByUserQuery = $this->query('postsByUser', ['userId' => $this->user->id], [
+            'id',
+            'title',
+        ]);
+
+        $this->assertEquals(
+            $this->posts->pluck('id')->toArray(),
+            Arr::pluck($postsByUserQuery->result(), 'id'),
+        );
+    }
 }

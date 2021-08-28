@@ -14,6 +14,7 @@ use Nuwave\Lighthouse\Execution\BatchLoader\BatchLoaderRegistry;
 use Nuwave\Lighthouse\Execution\BatchLoader\RelationBatchLoader;
 use Nuwave\Lighthouse\Execution\ModelsLoader\SimpleModelsLoader;
 use Nuwave\Lighthouse\Pagination\PaginationArgs;
+use Nuwave\Lighthouse\Pagination\PaginationManipulator;
 use Nuwave\Lighthouse\Schema\AST\ASTHelper;
 use Nuwave\Lighthouse\Schema\AST\DocumentAST;
 use Nuwave\Lighthouse\Schema\Directives\RelationDirective;
@@ -40,7 +41,10 @@ Moreover, it allows to fetch records from multiple custom and opinionated source
 """
 directive @collection(
   """
-  Type of pagination: it can be `all` (no pagination), or `paginator`.
+  Type of pagination. It can be:
+  - all: no pagination, but items inside `data` field.
+  - plain: no pagination, returns items as plain.
+  - paginator: normal lighthouse's behaviour.
   """
   type: String
 
@@ -98,15 +102,23 @@ SDL;
     {
         $collectionType = $this->directiveArgValue('type', 'all');
 
-        if ($collectionType === 'all') {
-            $collectionManipulator = new CollectionManipulator($documentAST);
-            $collectionManipulator->transformToCollectionField(
-                $fieldDefinition,
-                $parentType,
-                $documentAST
-            );
-        } else {
-            parent::manipulateFieldDefinition($documentAST, $fieldDefinition, $parentType);
+        switch ($collectionType) {
+            case 'pagination':
+                parent::manipulateFieldDefinition($documentAST, $fieldDefinition, $parentType);
+                break;
+
+            case 'plain':
+                break;
+
+            case 'all':
+            default:
+                $collectionManipulator = new CollectionManipulator($documentAST);
+                $collectionManipulator->transformToCollectionField(
+                    $fieldDefinition,
+                    $parentType,
+                    $documentAST
+                );
+                break;
         }
     }
 
