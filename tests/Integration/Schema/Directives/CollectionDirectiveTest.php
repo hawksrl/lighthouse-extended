@@ -420,4 +420,107 @@ class CollectionDirectiveTest extends TestCase
             Arr::pluck($postsByUserQuery->result(), 'id'),
         );
     }
+
+    /** @test */
+    public function it_can_fetch_plain_using_relationship()
+    {
+        $this->buildSchema(/** @lang GraphQL */ <<<'GRAPHQL'
+            type Post {
+                id: ID!
+                title: String!
+            }
+            type User {
+                id: ID!
+                name: String!
+                posts: [Post!] @collection(relation: "posts", type: "plain")
+            }
+            type Query {
+                user(id: ID! @eq): User! @find
+            }
+        GRAPHQL);
+
+        $userQuery = $this->query('user', ['id' => $this->user->id], [
+            'id',
+            'name',
+            'posts' => [
+                'id',
+                'title',
+            ],
+        ]);
+
+        $this->assertEquals($this->user->id, $userQuery->result('id'));
+        $this->assertEquals($this->user->name, $userQuery->result('name'));
+        $this->assertEquals(
+            $this->posts->pluck('id')->toArray(),
+            collect($userQuery->result('posts'))->pluck('id')->toArray()
+        );
+    }
+
+    /** @test */
+    public function it_can_fetch_plain_using_relationship_using_batch_loader()
+    {
+        $this->buildSchema(/** @lang GraphQL */ <<<'GRAPHQL'
+            type Post {
+                id: ID!
+                title: String!
+            }
+            type User {
+                id: ID!
+                name: String!
+                posts: [Post!] @collection(relation: "posts", type: "plain")
+            }
+            type Query {
+                users: [User]! @collection(model: "Tests\\Utils\\Models\\User")
+            }
+        GRAPHQL);
+
+        Post::query()->forceDelete();
+        User::query()->forceDelete();
+
+        $this->assertEquals(0, Post::query()->count());
+        $this->assertEquals(0, User::query()->count());
+
+        factory(User::class, 3)
+            ->create()
+            ->each(function ($user) {
+                factory(Post::class, 10)->create([
+                    'user_id' => $user->id,
+                ]);
+            });
+
+        $this->assertEquals(3 * 10, Post::query()->count());
+        $this->assertEquals(3, User::query()->count());
+
+        config(['lighthouse.batchload_relations' => false]);
+
+        $queryCount = 0;
+        DB::listen(function () use (&$queryCount): void {
+            $queryCount++;
+        });
+
+        $usersQuery = $this->query(
+            'users',
+            [],
+            [
+                'data' => [
+                    'id',
+                    'name',
+                    'posts' => [
+                        'id',
+                        'title',
+                    ],
+                ],
+            ]
+        );
+
+        $this->assertEquals(1 + 3, $queryCount);
+
+        config(['lighthouse.batchload_relations' => true]);
+
+        $queryCount = 0;
+
+        $usersQuery->refetch();
+
+        $this->assertEquals(2, $queryCount);
+    }
 }

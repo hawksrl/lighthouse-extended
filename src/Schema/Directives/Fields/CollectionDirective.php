@@ -103,7 +103,7 @@ SDL;
         $collectionType = $this->directiveArgValue('type', 'all');
 
         switch ($collectionType) {
-            case 'pagination':
+            case 'paginator':
                 parent::manipulateFieldDefinition($documentAST, $fieldDefinition, $parentType);
                 break;
 
@@ -134,7 +134,7 @@ SDL;
     {
         $paginationType = $this->directiveArgValue('type', 'all');
 
-        if ($paginationType === 'all') {
+        if (in_array($paginationType, ['all', 'plain'])) {
             if ($this->directiveArgValue('model')) {
                 $modelClass = $this->getModelClass();
                 return $this->resolveWithModel($fieldValue, $modelClass);
@@ -194,17 +194,11 @@ SDL;
                         ->enhanceBuilder($builder, $this->directiveArgValue('scopes', []));
                 };
 
-                /** @var \Nuwave\Lighthouse\Pagination\PaginationArgs|null $paginationArgs */
-                $paginationArgs = null;
-                if ($paginationType = $this->paginationType()) {
-                    $paginationArgs = PaginationArgs::extractArgs($args, $paginationType, $this->paginationMaxCount());
-                }
-
                 if (config('lighthouse.batchload_relations')) {
                     /** @var \Nuwave\Lighthouse\Execution\BatchLoader\RelationBatchLoader $relationBatchLoader */
                     $relationBatchLoader = BatchLoaderRegistry::instance(
                         $this->qualifyPath($args, $resolveInfo),
-                        function () use ($relationName, $decorateBuilder, $paginationArgs): RelationBatchLoader {
+                        function () use ($relationName, $decorateBuilder): RelationBatchLoader {
                             $modelsLoader = new SimpleModelsLoader($relationName, $decorateBuilder);
 
                             return new RelationBatchLoader($modelsLoader);
@@ -217,10 +211,6 @@ SDL;
                     $relation = $parent->{$relationName}();
 
                     $decorateBuilder($relation);
-
-                    if ($paginationArgs) {
-                        $relation = $paginationArgs->applyToBuilder($relation);
-                    }
 
                     return $relation->getResults();
                 }
