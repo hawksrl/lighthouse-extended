@@ -3,11 +3,15 @@
 namespace Hawk\LighthouseExtended\Schema\Directives\Fields;
 
 use Closure;
+use GraphQL\Type\Definition\ResolveInfo;
 use Nuwave\Lighthouse\Execution\Arguments\ArgumentSet;
 use Nuwave\Lighthouse\Schema\Directives\BaseDirective;
+use Nuwave\Lighthouse\Schema\Values\FieldValue;
 use Nuwave\Lighthouse\Support\Contracts\ArgResolver;
+use Nuwave\Lighthouse\Support\Contracts\FieldResolver;
+use Nuwave\Lighthouse\Support\Contracts\GraphQLContext;
 
-class NestedFieldDirective extends BaseDirective implements ArgResolver
+class NestedFieldDirective extends BaseDirective implements ArgResolver, FieldResolver
 {
     public function name(): string
     {
@@ -60,5 +64,29 @@ SDL;
         );
 
         return $resolver($related, $args);
+    }
+
+    public function resolveField(FieldValue $fieldValue): FieldValue
+    {
+        $modelClass = $this->getModelClass();
+
+        /** @var \Illuminate\Database\Eloquent\Model $model */
+        $model = new $modelClass;
+
+        [$className, $methodName] = $this->getMethodArgumentParts('resolver');
+
+        return $fieldValue->setResolver(
+            function ($root, array $args, GraphQLContext $context, ResolveInfo $resolveInfo) use ($model, $className, $methodName) {
+                $resolver = Closure::fromCallable(
+                // @phpstan-ignore-next-line this works
+                    [app($className, [
+                        'model' => $model,
+                        'args' => $args,
+                    ]), $methodName]
+                );
+
+                return $resolver($model, $resolveInfo->argumentSet);
+            }
+        );
     }
 }

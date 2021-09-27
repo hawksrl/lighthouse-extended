@@ -4,6 +4,7 @@ namespace Tests\Integration\Directives;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 use Tests\Utils\Models\User;
 
@@ -94,6 +95,53 @@ class NestedFieldDirectiveTest extends TestCase
                     'body' => Arr::get($post, 'body'),
                 ];
             }),
+        );
+    }
+
+    /** @test */
+    public function it_can_set_a_custom_resolver_for_a_field()
+    {
+        $this->buildSchemaWithPlaceholderQuery(/** @lang GraphQL */ <<<'GRAPHQL'
+            type User {
+                id: ID!
+                name: String
+                email: String
+                posts: [Post!] @hasMany
+            }
+            input UpsertUserInput {
+                name: String
+                email: String
+            }
+            type Mutation {
+                upsertUser(input: UpsertUserInput! @spread): User! @nestedField(resolver: "Tests\\Utils\\Mutations\\UpsertUserFieldResolver")
+            }
+        GRAPHQL);
+
+        $upsertUserMutation = $this->mutation(
+            'upsertUser',
+            [
+                'input' => [
+                    'name' => faker()->name,
+                    'email' => Str::upper(faker()->email),
+                ],
+            ],
+            [
+                'id',
+                'name',
+                'email',
+            ]
+        );
+
+        $user = User::findOrFail($upsertUserMutation->result('id'));
+        $this->assertEquals(
+            [
+                'name' => $upsertUserMutation->variable('input.name'),
+                'email' => Str::lower($upsertUserMutation->variable('input.email')),
+            ],
+            [
+                'name' => $user->name,
+                'email' => $user->email,
+            ],
         );
     }
 }
