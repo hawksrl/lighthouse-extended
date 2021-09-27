@@ -3,7 +3,6 @@
 namespace Hawk\LighthouseExtended\Exceptions;
 
 use Exception;
-use Illuminate\Support\Arr;
 use Nuwave\Lighthouse\Exceptions\RendersErrorsExtensions;
 
 class HkMutationException extends Exception implements RendersErrorsExtensions
