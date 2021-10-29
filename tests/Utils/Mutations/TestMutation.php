@@ -20,6 +20,12 @@ class TestMutation extends HkMutation
         ];
     }
 
+    public function moreValidation()
+    {
+        // More custom validations.
+        // $this->addError('key', 'message');
+    }
+
     public function mutate(): string
     {
         return strtoupper($this->input('word'));
